@@ -15,6 +15,8 @@ private:
   static size_t mBufferIndex;
 
   CEasyCommHandler() {}
-  static int32_t parse_number(char* string);
   static void handle_command();
+  static void handle_az_el_command(CAxis* axis);
+  static bool string_to_number(char* string, int32_t& number);
+  static bool number_to_string(int32_t& number, char* string);
 };
