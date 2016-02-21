@@ -29,7 +29,9 @@ void CAxis::begin()
 {
   pinMode(mEncPin, INPUT);
   pinMode(mMotPosPin, OUTPUT);
+  digitalWrite(mMotPosPin, 1);
   pinMode(mMotNegPin, OUTPUT);
+  digitalWrite(mMotNegPin, 1);
 }
 
 void CAxis::enc_interrupt()
@@ -51,7 +53,7 @@ void CAxis::enc_interrupt()
   return;
 }
 
-void CAxis::move_to_position(uint16_t setpoint)
+void CAxis::move_to_position(int32_t setpoint)
 {
   mStopAtSetpoint = true;
   mEncAngleSet = setpoint;
@@ -131,25 +133,32 @@ void CAxis::update()
 void CAxis::motor_set_state(CAxis::EMotorState state)
 {
   mMotCurState = state;
-
+  Serial.write("DBG setting state ");
   switch(state)
   {
     case CAxis::EMotorStateRunningPos:
-      digitalWrite(mMotPosPin, 1);
+      digitalWrite(mMotPosPin, 0);
+      Serial.write("EMotorStateRunningPos");
       break;
     case CAxis::EMotorStateRunningNeg:
-      digitalWrite(mMotNegPin, 1);
+      digitalWrite(mMotNegPin, 0);
+      Serial.write("EMotorStateRunningNeg");
       break;
     case CAxis::EMotorStateStoppingPos:
-      digitalWrite(mMotPosPin, 0);
+      digitalWrite(mMotPosPin, 1);
+      Serial.write("EMotorStateStoppingPos");
       break;
     case CAxis::EMotorStateStoppingNeg:
-      digitalWrite(mMotNegPin, 0);
+      digitalWrite(mMotNegPin, 1);
+      Serial.write("EMotorStateStoppingNeg");
       break;
     case CAxis::EMotorStateStopped:
+      Serial.write("EMotorStateStopped");
+      break;
     default:
       break;
   }
+  Serial.write("\n");
 }
 
 void CAxis::motor_request_state(CAxis::EMotorState req_state)
@@ -175,6 +184,8 @@ void CAxis::motor_request_state(CAxis::EMotorState req_state)
     case CAxis::EMotorStateRunningNeg:
       if (mMotReqState == CAxis::EMotorStateRunningPos || mMotReqState == CAxis::EMotorStateStopped)
         motor_set_state(CAxis::EMotorStateStoppingNeg);
+        mTransitionDueTime = millis() + STOPPING_TIME;
+
       break;
       // Transitional states, no action on request
     case CAxis::EMotorStateStoppingPos:

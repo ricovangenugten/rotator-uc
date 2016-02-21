@@ -3,16 +3,16 @@
 #include "easycomm_handler.h"
 //#include "axis.h"
 
-#define MOT_0_POS  13
-#define MOT_0_NEG  12
-#define MOT_1_POS  11
-#define MOT_1_NEG  10
-#define LCD_RS 9
-#define LCD_E  8
-#define LCD_D4 7
-#define LCD_D5 6
-#define LCD_D6 5
-#define LCD_D7 4
+#define LCD_RS 13
+#define LCD_E  12
+#define LCD_D4 11
+#define LCD_D5 10
+#define LCD_D6 9
+#define LCD_D7 8
+#define MOT_0_POS  7
+#define MOT_0_NEG  6
+#define MOT_1_POS  5
+#define MOT_1_NEG  4
 #define ENC_0  3
 #define ENC_1  2
 
@@ -73,17 +73,18 @@ void setup() {
 
   lcd.setCursor(0,0);
   lcd.print("PA3RVG Az/El Rot");
+  Serial.print("PA3RVG Az/El Rot\n");
   delay(1000);
 
-  lcd.setCursor(1,0);
+  lcd.setCursor(0,1);
   lcd.print("Homing El..");
   do_homing_procedure(elevation_axis, EL_HOMING_OFFSET);
 
-  lcd.setCursor(1,0);
+  lcd.setCursor(0,1);
   lcd.print("Homing Az..");
   do_homing_procedure(azimuth_axis, AZ_HOMING_OFFSET);
 
-  lcd.setCursor(1,0);
+  lcd.setCursor(0,1);
   lcd.print("Ready      ");
   delay(1000);
 }
@@ -104,12 +105,14 @@ void loop()
       lcd.print(azimuth_axis.get_position_setpoint()/100);
       lcd.print(" E ");
       lcd.print(elevation_axis.get_position_setpoint()/100);
+      lcd.print("     ");
 
-      lcd.setCursor(1,0);
+      lcd.setCursor(0,1);
       lcd.print("Cur A ");
       lcd.print(azimuth_axis.get_current_position()/100);
       lcd.print(" E ");
       lcd.print(elevation_axis.get_current_position()/100);
+      lcd.print("     ");
 
       next_display_update_due += DISPLAY_UPDATE_PERIOD;
     }

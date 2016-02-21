@@ -4,7 +4,7 @@ public:
   CAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin);
   void begin();
   void enc_interrupt();
-  void move_to_position(uint16_t setpoint);
+  void move_to_position(int32_t setpoint);
   void move_positive();
   void move_negative();
   void stop_moving();
@@ -36,7 +36,7 @@ private:
   EMotorState mMotCurState;
   EMotorState mMotReqState;
   EEncState mEncCurState;
-  unsigned long mEncLastChange;
+  uint32_t mEncLastChange;
   volatile int32_t mEncAngleAct;
   int32_t mEncAngleSet;
   uint32_t mTransitionDueTime;

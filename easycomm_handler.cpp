@@ -36,8 +36,7 @@ void CEasyCommHandler::update()
       {
         // Command seperator detected,
         // terminate with \0 and process command
-        //print_msg("cmd received");
-        Serial.write("INFO command received\n");
+        Serial.write("DBG command received\n");
         mReceiveBuffer[mBufferIndex] = '\0';
         handle_command();
         mBufferIndex = 0;
@@ -151,15 +150,17 @@ bool CEasyCommHandler::string_to_number(char* string, int32_t& number)
   string[len-2] = string[len-1];
   string[len-1] = '\0';
 
-  number = atol(string) * 10L;
-  Serial.write("INFO succesfully parsed string to number\n");
+  number = static_cast<int32_t>(atol(string) * 10L);
+  Serial.write("DBG succesfully parsed string to number: ");
+  Serial.print(number);
+  Serial.write("\n");
   return true;
 }
 
 bool CEasyCommHandler::number_to_string(int32_t& number, char* string)
 {
   int32_t scaled_number = (number/10L) + (number % 10L >= (10L/2L) ? 1L : 0L);
-  snprintf(string, MAX_NUMBER_STRING_SIZE, "%ld", scaled_number);
+  snprintf(string, MAX_NUMBER_STRING_SIZE, "%ld", static_cast<long int>(scaled_number));
 
   size_t len = strnlen(string, MAX_NUMBER_STRING_SIZE-1);
 
@@ -175,6 +176,8 @@ bool CEasyCommHandler::number_to_string(int32_t& number, char* string)
   string[len-1] = '.';
   string[len+1] = '\0';
 
-  Serial.write("INFO succesfully parsed number into string\n");
+  Serial.write("DBG succesfully parsed number into string: ");
+  Serial.write(string);
+  Serial.write("\n");
   return true;
 }
