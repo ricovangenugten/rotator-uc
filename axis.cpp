@@ -3,12 +3,15 @@
 
 // 300 [rot/min] * (20*2) [transitions] / 60 [sec/min] = 200 [transitions/second]
 // 1000 [ms] / 200 [transitions/second] = 5 [ms/transition]
-#define ENC_DEAD_TIME 3; // ms
+#define ENC_DEAD_TIME 1 // ms
 
-// 36000 [1/100 deg] / 300 [rot/rot] / (20*2) [transitions] = 3 [1/100 deg/transition]
-#define CDEG_PER_COUNT 3
+// 7.5 deg/s / 5 rot/s / 40 trans/rot = 0.0375 deg/trans = 375 * 1e-4 deg/trans
+#define INCR_PER_COUNT 375 // 1e-4 deg
 
-#define STOPPING_TIME 500; //ms
+// external (1e-1 deg) to internal (1e-4 deg) scaling factor
+#define EXT_TO_INT_FACTOR 1e3
+
+#define STOPPING_TIME 500L //ms
 
 CAxis::CAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin) :
   mMotCurState(CAxis::EMotorStateStopped),
@@ -39,13 +42,13 @@ void CAxis::enc_interrupt()
   CAxis::EEncState new_state = static_cast<CAxis::EEncState>(digitalRead(mEncPin));
   if (mEncCurState != new_state)
   {
-    if (millis() - mEncLastChange > 50)
+    if ((millis() - mEncLastChange) >= ENC_DEAD_TIME)
     {
       // valid encoder transition
       if (mMotCurState == CAxis::EMotorStateRunningPos || mMotCurState == CAxis::EMotorStateStoppingPos)
-        mEncAngleAct += CDEG_PER_COUNT;
+        mEncAngleAct += INCR_PER_COUNT;
       if (mMotCurState == CAxis::EMotorStateRunningNeg || mMotCurState == CAxis::EMotorStateStoppingNeg)
-        mEncAngleAct -= CDEG_PER_COUNT;
+        mEncAngleAct -= INCR_PER_COUNT;
     }
     mEncLastChange = millis();
     mEncCurState = new_state;
@@ -53,10 +56,17 @@ void CAxis::enc_interrupt()
   return;
 }
 
+void CAxis::enc_reset()
+{
+  noInterrupts();
+  mEncLastChange = millis();
+  interrupts();
+}
+
 void CAxis::move_to_position(int32_t setpoint)
 {
   mStopAtSetpoint = true;
-  mEncAngleSet = setpoint;
+  mEncAngleSet = setpoint * EXT_TO_INT_FACTOR;
   if (mEncAngleSet > mEncAngleAct)
     motor_request_state(CAxis::EMotorStateRunningPos);
   else if (mEncAngleSet < mEncAngleAct)
@@ -84,13 +94,13 @@ void CAxis::stop_moving()
 
 int32_t CAxis::get_position_setpoint()
 {
-  return mEncAngleSet;
+  return mEncAngleSet / EXT_TO_INT_FACTOR;
 }
 
 int32_t CAxis::get_current_position()
 {
   noInterrupts();
-  int32_t enc_angle = mEncAngleAct;
+  int32_t enc_angle = mEncAngleAct / EXT_TO_INT_FACTOR;
   interrupts();
   return enc_angle;
 }
@@ -98,13 +108,22 @@ int32_t CAxis::get_current_position()
 void CAxis::set_current_position(int32_t position)
 {
   noInterrupts();
-  mEncAngleAct = position;
+  mEncAngleAct = position * EXT_TO_INT_FACTOR;
   interrupts();
+  Serial.write("DBG cur pos set to");
+  Serial.print(mEncAngleAct);
+  Serial.write("\n");
+
 }
 
 void CAxis::update()
 {
-  int32_t enc_angle = get_current_position();
+  noInterrupts();
+  int32_t enc_angle = mEncAngleAct;
+  uint32_t enc_last_change = mEncLastChange;
+  interrupts();
+
+  bool not_moving = millis() > (enc_last_change + STOPPING_TIME);
 
   switch(mMotCurState)
   {
@@ -112,11 +131,11 @@ void CAxis::update()
       // Do nothing
       break;
     case CAxis::EMotorStateRunningPos:
-      if (mStopAtSetpoint && enc_angle >= mEncAngleSet)
+      if (not_moving || (mStopAtSetpoint && enc_angle >= mEncAngleSet))
         motor_request_state(CAxis::EMotorStateStopped);
       break;
     case CAxis::EMotorStateRunningNeg:
-      if (mStopAtSetpoint && enc_angle <= mEncAngleSet)
+      if (not_moving || (mStopAtSetpoint && enc_angle <= mEncAngleSet))
         motor_request_state(CAxis::EMotorStateStopped);
       break;
     case CAxis::EMotorStateStoppingNeg: // fall-through
@@ -137,10 +156,12 @@ void CAxis::motor_set_state(CAxis::EMotorState state)
   switch(state)
   {
     case CAxis::EMotorStateRunningPos:
+      enc_reset();
       digitalWrite(mMotPosPin, 0);
       Serial.write("EMotorStateRunningPos");
       break;
     case CAxis::EMotorStateRunningNeg:
+      enc_reset();
       digitalWrite(mMotNegPin, 0);
       Serial.write("EMotorStateRunningNeg");
       break;
@@ -170,8 +191,7 @@ void CAxis::motor_request_state(CAxis::EMotorState req_state)
       // From stopped, only transition to running pos or running neg is allowed
       if (mMotReqState == CAxis::EMotorStateRunningPos || mMotReqState == CAxis::EMotorStateRunningNeg)
       {
-        motor_set_state(CAxis::EMotorStateStoppingPos);
-        mTransitionDueTime = millis() + STOPPING_TIME;
+        motor_set_state(mMotReqState);
       }
       break;
     case CAxis::EMotorStateRunningPos:
@@ -183,9 +203,10 @@ void CAxis::motor_request_state(CAxis::EMotorState req_state)
       break;
     case CAxis::EMotorStateRunningNeg:
       if (mMotReqState == CAxis::EMotorStateRunningPos || mMotReqState == CAxis::EMotorStateStopped)
+      {
         motor_set_state(CAxis::EMotorStateStoppingNeg);
         mTransitionDueTime = millis() + STOPPING_TIME;
-
+      }
       break;
       // Transitional states, no action on request
     case CAxis::EMotorStateStoppingPos:

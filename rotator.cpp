@@ -16,8 +16,8 @@
 #define ENC_0  3
 #define ENC_1  2
 
-#define AZIMUTH_ENC_INTERRUPT 0
-#define ELEVATION_ENC_INTERRUPT 1
+#define ENC_0_INTERRUPT 1
+#define ENC_1_INTERRUPT 0
 
 #define LCD_COLS 16
 #define LCD_ROWS 2
@@ -26,8 +26,8 @@
 
 #define DISPLAY_UPDATE_PERIOD 500 // ms
 #define HOMING_CHECK_TIME 500 // ms
-#define AZ_HOMING_OFFSET -1000 // [1/100 deg]
-#define EL_HOMING_OFFSET -1000 // [1/100 deg]
+#define AZ_HOMING_OFFSET -100 // [1/10 deg]
+#define EL_HOMING_OFFSET -100 // [1/10 deg]
 
 LiquidCrystal lcd(LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 CAxis azimuth_axis(ENC_0, MOT_0_POS, MOT_0_NEG);
@@ -45,16 +45,14 @@ void elevation_enc_interrupt()
 
 void do_homing_procedure(CAxis& axis, int32_t homing_offset)
 {
-  int32_t prev_pos = 0;
+  int32_t prev_pos = -1;
   int32_t cur_pos = 0;
   axis.move_negative();
-  while(1)
+  while(prev_pos != cur_pos)
   {
-    cur_pos = axis.get_current_position();
-    if (cur_pos == prev_pos)
-      break;
     prev_pos = cur_pos;
     delay(HOMING_CHECK_TIME);
+    cur_pos = axis.get_current_position();
   }
   axis.stop_moving();
   axis.set_current_position(homing_offset);
@@ -65,8 +63,8 @@ void setup() {
   azimuth_axis.begin();
   elevation_axis.begin();
 
-  attachInterrupt(AZIMUTH_ENC_INTERRUPT, azimuth_enc_interrupt, CHANGE);
-  attachInterrupt(ELEVATION_ENC_INTERRUPT, elevation_enc_interrupt, CHANGE);
+  attachInterrupt(ENC_0_INTERRUPT, azimuth_enc_interrupt, CHANGE);
+  attachInterrupt(ENC_1_INTERRUPT, elevation_enc_interrupt, CHANGE);
 
   CEasyCommHandler::begin(azimuth_axis, elevation_axis, BAUD_RATE);
   lcd.begin(LCD_COLS, LCD_ROWS);
@@ -84,9 +82,6 @@ void setup() {
   lcd.print("Homing Az..");
   do_homing_procedure(azimuth_axis, AZ_HOMING_OFFSET);
 
-  lcd.setCursor(0,1);
-  lcd.print("Ready      ");
-  delay(1000);
 }
 
 void loop()
@@ -102,19 +97,20 @@ void loop()
     {
       lcd.setCursor(0,0);
       lcd.print("Set A ");
-      lcd.print(azimuth_axis.get_position_setpoint()/100);
+      lcd.print(azimuth_axis.get_position_setpoint()/10);
       lcd.print(" E ");
-      lcd.print(elevation_axis.get_position_setpoint()/100);
+      lcd.print(elevation_axis.get_position_setpoint()/10);
       lcd.print("     ");
 
       lcd.setCursor(0,1);
       lcd.print("Cur A ");
-      lcd.print(azimuth_axis.get_current_position()/100);
+      lcd.print(azimuth_axis.get_current_position()/10);
       lcd.print(" E ");
-      lcd.print(elevation_axis.get_current_position()/100);
+      lcd.print(elevation_axis.get_current_position()/10);
       lcd.print("     ");
 
       next_display_update_due += DISPLAY_UPDATE_PERIOD;
     }
+    delay(1);
   }
 }

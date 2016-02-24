@@ -150,7 +150,7 @@ bool CEasyCommHandler::string_to_number(char* string, int32_t& number)
   string[len-2] = string[len-1];
   string[len-1] = '\0';
 
-  number = static_cast<int32_t>(atol(string) * 10L);
+  number = static_cast<int32_t>(atol(string));
   Serial.write("DBG succesfully parsed string to number: ");
   Serial.print(number);
   Serial.write("\n");
@@ -159,8 +159,7 @@ bool CEasyCommHandler::string_to_number(char* string, int32_t& number)
 
 bool CEasyCommHandler::number_to_string(int32_t& number, char* string)
 {
-  int32_t scaled_number = (number/10L) + (number % 10L >= (10L/2L) ? 1L : 0L);
-  snprintf(string, MAX_NUMBER_STRING_SIZE, "%ld", static_cast<long int>(scaled_number));
+  snprintf(string, MAX_NUMBER_STRING_SIZE, "%ld", static_cast<long int>(number));
 
   size_t len = strnlen(string, MAX_NUMBER_STRING_SIZE-1);
 

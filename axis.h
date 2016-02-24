@@ -4,6 +4,7 @@ public:
   CAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin);
   void begin();
   void enc_interrupt();
+  void enc_reset();
   void move_to_position(int32_t setpoint);
   void move_positive();
   void move_negative();
