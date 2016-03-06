@@ -22,6 +22,12 @@ private:
     EEncStateUnknown = 2,
   };
 
+  enum ERelayState
+  {
+    ERelayStateOff    = 0,
+    ERelayStateOn     = 1,
+  };
+
   enum EMotorState
   {
     EMotorStateStopped     = 0,

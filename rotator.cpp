@@ -9,10 +9,10 @@
 #define LCD_D5 10
 #define LCD_D6 9
 #define LCD_D7 8
-#define MOT_0_POS  7
-#define MOT_0_NEG  6
-#define MOT_1_POS  5
-#define MOT_1_NEG  4
+#define MOT_1_NEG  7
+#define MOT_1_POS  6
+#define MOT_0_NEG  5
+#define MOT_0_POS  4
 #define ENC_0  3
 #define ENC_1  2
 

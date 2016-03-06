@@ -31,10 +31,10 @@ CAxis::CAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin) :
 void CAxis::begin()
 {
   pinMode(mEncPin, INPUT);
+  digitalWrite(mMotPosPin, CAxis::ERelayStateOff);
   pinMode(mMotPosPin, OUTPUT);
-  digitalWrite(mMotPosPin, 1);
+  digitalWrite(mMotNegPin, CAxis::ERelayStateOff);
   pinMode(mMotNegPin, OUTPUT);
-  digitalWrite(mMotNegPin, 1);
 }
 
 void CAxis::enc_interrupt()
@@ -157,20 +157,20 @@ void CAxis::motor_set_state(CAxis::EMotorState state)
   {
     case CAxis::EMotorStateRunningPos:
       enc_reset();
-      digitalWrite(mMotPosPin, 0);
+      digitalWrite(mMotPosPin, CAxis::ERelayStateOn);
       //Serial.write("EMotorStateRunningPos");
       break;
     case CAxis::EMotorStateRunningNeg:
       enc_reset();
-      digitalWrite(mMotNegPin, 0);
+      digitalWrite(mMotNegPin, CAxis::ERelayStateOn);
       //Serial.write("EMotorStateRunningNeg");
       break;
     case CAxis::EMotorStateStoppingPos:
-      digitalWrite(mMotPosPin, 1);
+      digitalWrite(mMotPosPin, CAxis::ERelayStateOff);
       //Serial.write("EMotorStateStoppingPos");
       break;
     case CAxis::EMotorStateStoppingNeg:
-      digitalWrite(mMotNegPin, 1);
+      digitalWrite(mMotNegPin, CAxis::ERelayStateOff);
       //Serial.write("EMotorStateStoppingNeg");
       break;
     case CAxis::EMotorStateStopped:
