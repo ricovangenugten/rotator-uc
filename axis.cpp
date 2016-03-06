@@ -110,9 +110,9 @@ void CAxis::set_current_position(int32_t position)
   noInterrupts();
   mEncAngleAct = position * EXT_TO_INT_FACTOR;
   interrupts();
-  Serial.write("DBG cur pos set to");
-  Serial.print(mEncAngleAct);
-  Serial.write("\n");
+  //Serial.write("DBG cur pos set to");
+  //Serial.print(mEncAngleAct);
+  //Serial.write("\n");
 
 }
 
@@ -152,34 +152,34 @@ void CAxis::update()
 void CAxis::motor_set_state(CAxis::EMotorState state)
 {
   mMotCurState = state;
-  Serial.write("DBG setting state ");
+  //Serial.write("DBG setting state ");
   switch(state)
   {
     case CAxis::EMotorStateRunningPos:
       enc_reset();
       digitalWrite(mMotPosPin, 0);
-      Serial.write("EMotorStateRunningPos");
+      //Serial.write("EMotorStateRunningPos");
       break;
     case CAxis::EMotorStateRunningNeg:
       enc_reset();
       digitalWrite(mMotNegPin, 0);
-      Serial.write("EMotorStateRunningNeg");
+      //Serial.write("EMotorStateRunningNeg");
       break;
     case CAxis::EMotorStateStoppingPos:
       digitalWrite(mMotPosPin, 1);
-      Serial.write("EMotorStateStoppingPos");
+      //Serial.write("EMotorStateStoppingPos");
       break;
     case CAxis::EMotorStateStoppingNeg:
       digitalWrite(mMotNegPin, 1);
-      Serial.write("EMotorStateStoppingNeg");
+      //Serial.write("EMotorStateStoppingNeg");
       break;
     case CAxis::EMotorStateStopped:
-      Serial.write("EMotorStateStopped");
+      //Serial.write("EMotorStateStopped");
       break;
     default:
       break;
   }
-  Serial.write("\n");
+  //Serial.write("\n");
 }
 
 void CAxis::motor_request_state(CAxis::EMotorState req_state)

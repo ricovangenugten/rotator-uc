@@ -7,7 +7,7 @@
 CAxis* CEasyCommHandler::mAzimuthAxis = NULL;
 CAxis* CEasyCommHandler::mElevationAxis = NULL;
 char CEasyCommHandler::mReceiveBuffer[BUF_SIZE];
-size_t CEasyCommHandler::mBufferIndex;
+size_t CEasyCommHandler::mBufferIndex = 0;
 
 void CEasyCommHandler::begin(CAxis& azimuth_axis, CAxis& elevation_axis, uint16_t baud_rate)
 {
@@ -34,10 +34,7 @@ void CEasyCommHandler::update()
       }
       if (mReceiveBuffer[mBufferIndex] == '\n' || mReceiveBuffer[mBufferIndex] == '\r' || mReceiveBuffer[mBufferIndex] == ' ')
       {
-        // Command seperator detected,
-        // terminate with \0 and process command
-        Serial.write("DBG command received\n");
-        mReceiveBuffer[mBufferIndex] = '\0';
+        // Command seperator detected, process command
         handle_command();
         mBufferIndex = 0;
         break;
@@ -103,27 +100,32 @@ void CEasyCommHandler::handle_command()
 
 void CEasyCommHandler::handle_az_el_command(CAxis* axis)
 {
-  if (mReceiveBuffer[2] == '\0')
+  if (mBufferIndex == 2)
   {
-    // Get current position
+    // If the command is two bytes long get current position
     char num_string[MAX_NUMBER_STRING_SIZE];
-    int32_t cur_pos = mAzimuthAxis->get_current_position();
+    int32_t cur_pos = axis->get_current_position();
     if (CEasyCommHandler::number_to_string(cur_pos, num_string))
     {
       Serial.write(mReceiveBuffer[0]);
       Serial.write(mReceiveBuffer[1]);
       Serial.write(num_string);
-      Serial.write("\n");
+      // Write back the same character as used to end the command,
+      // since rotctld depends on that
+      Serial.write(mReceiveBuffer[2]);
     }
   }
   else
   {
-    // Start moving to position
+    // Command is longer than two bytes, interpret rest as position setpoint
     int32_t number = 0;
+    // replace command separator with null character
+    // so the buffer can be used as a string
+    mReceiveBuffer[mBufferIndex] = '\0';
     if (CEasyCommHandler::string_to_number(&(mReceiveBuffer[2]), number))
     {
       axis->move_to_position(number);
-      Serial.write("OK moving to setpoint\n");
+      //Serial.write("OK moving to setpoint\n");
     }
   }
 }
@@ -151,9 +153,9 @@ bool CEasyCommHandler::string_to_number(char* string, int32_t& number)
   string[len-1] = '\0';
 
   number = static_cast<int32_t>(atol(string));
-  Serial.write("DBG succesfully parsed string to number: ");
-  Serial.print(number);
-  Serial.write("\n");
+  //Serial.write("DBG succesfully parsed string to number: ");
+  //Serial.print(number);
+  //Serial.write("\n");
   return true;
 }
 
@@ -175,8 +177,8 @@ bool CEasyCommHandler::number_to_string(int32_t& number, char* string)
   string[len-1] = '.';
   string[len+1] = '\0';
 
-  Serial.write("DBG succesfully parsed number into string: ");
-  Serial.write(string);
-  Serial.write("\n");
+  //Serial.write("DBG succesfully parsed number into string: ");
+  //Serial.write(string);
+  //Serial.write("\n");
   return true;
 }
