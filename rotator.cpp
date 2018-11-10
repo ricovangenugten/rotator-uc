@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <LiquidCrystal.h>
 #include "easycomm_handler.h"
-//#include "axis.h"
+#include "encoder_axis.h"
 
 #define LCD_RS 13
 #define LCD_E  12
@@ -25,13 +25,11 @@
 #define BAUD_RATE 9600
 
 #define DISPLAY_UPDATE_PERIOD 500 // ms
-#define HOMING_CHECK_TIME 500 // ms
-#define AZ_HOMING_OFFSET -100 // [1/10 deg]
-#define EL_HOMING_OFFSET -100 // [1/10 deg]
 
 LiquidCrystal lcd(LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
-CAxis azimuth_axis(ENC_0, MOT_0_POS, MOT_0_NEG);
-CAxis elevation_axis(ENC_1, MOT_1_POS, MOT_1_NEG);
+
+CEncoderAxis azimuth_axis(ENC_0, MOT_0_POS, MOT_0_NEG);
+CEncoderAxis elevation_axis(ENC_1, MOT_1_POS, MOT_1_NEG);
 
 void azimuth_enc_interrupt()
 {
@@ -41,22 +39,6 @@ void azimuth_enc_interrupt()
 void elevation_enc_interrupt()
 {
   elevation_axis.enc_interrupt();
-}
-
-void do_homing_procedure(CAxis& axis, int32_t homing_offset)
-{
-  int32_t prev_pos = -1;
-  int32_t cur_pos = 0;
-  axis.move_negative();
-  while(prev_pos != cur_pos)
-  {
-    prev_pos = cur_pos;
-    delay(HOMING_CHECK_TIME);
-    cur_pos = axis.get_current_position();
-  }
-  axis.stop_moving();
-  axis.set_current_position(homing_offset);
-  axis.move_to_position(0);
 }
 
 void setup() {
@@ -76,12 +58,11 @@ void setup() {
 
   lcd.setCursor(0,1);
   lcd.print("Homing El..");
-  do_homing_procedure(elevation_axis, EL_HOMING_OFFSET);
+  elevation_axis.do_homing_procedure();
 
   lcd.setCursor(0,1);
   lcd.print("Homing Az..");
-  do_homing_procedure(azimuth_axis, AZ_HOMING_OFFSET);
-
+  azimuth_axis.do_homing_procedure();
 }
 
 void loop()

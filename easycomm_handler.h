@@ -1,3 +1,5 @@
+#pragma once
+
 #include "axis.h"
 
 #define BUF_SIZE 64
