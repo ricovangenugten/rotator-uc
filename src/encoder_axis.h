@@ -1,13 +1,11 @@
 #pragma once
 
-#include "axis.h"
-
-class CEncoderAxis : public CAxis
+class CEncoderAxis
 {
 public:
-  CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin);
+  CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin, int32_t start_pos);
   void begin();
-  void enc_interrupt();
+  void INTERRUPT_FUNC enc_interrupt();
   void enc_reset();
   void move_to_position(int32_t setpoint);
   void move_positive();

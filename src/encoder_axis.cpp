@@ -15,12 +15,12 @@
 #define HOMING_CHECK_TIME 500 // ms
 #define HOMING_OFFSET -100 // [1/10 deg]
 
-CEncoderAxis::CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin) :
+CEncoderAxis::CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin, int32_t start_pos) :
   mMotCurState(CEncoderAxis::EMotorStateStopped),
   mMotReqState(CEncoderAxis::EMotorStateStopped),
   mEncCurState(CEncoderAxis::EEncStateUnknown),
   mEncLastChange(0),
-  mEncAngleAct(0),
+  mEncAngleAct(start_pos*EXT_TO_INT_FACTOR),
   mEncAngleSet(0),
   mTransitionDueTime(0),
   mEncPin(enc_pin),
@@ -42,9 +42,10 @@ void CEncoderAxis::begin()
 void CEncoderAxis::enc_interrupt()
 {
   CEncoderAxis::EEncState new_state = static_cast<CEncoderAxis::EEncState>(digitalRead(mEncPin));
+  static uint32_t curTime = millis();
   if (mEncCurState != new_state)
   {
-    if ((millis() - mEncLastChange) >= ENC_DEAD_TIME)
+    if ((curTime - mEncLastChange) >= ENC_DEAD_TIME)
     {
       // valid encoder transition
       if (mMotCurState == CEncoderAxis::EMotorStateRunningPos || mMotCurState == CEncoderAxis::EMotorStateStoppingPos)
@@ -52,7 +53,7 @@ void CEncoderAxis::enc_interrupt()
       if (mMotCurState == CEncoderAxis::EMotorStateRunningNeg || mMotCurState == CEncoderAxis::EMotorStateStoppingNeg)
         mEncAngleAct -= INCR_PER_COUNT;
     }
-    mEncLastChange = millis();
+    mEncLastChange = curTime;
     mEncCurState = new_state;
   }
   return;
@@ -101,17 +102,13 @@ int32_t CEncoderAxis::get_position_setpoint()
 
 int32_t CEncoderAxis::get_current_position()
 {
-  noInterrupts();
   int32_t enc_angle = mEncAngleAct / EXT_TO_INT_FACTOR;
-  interrupts();
   return enc_angle;
 }
 
 void CEncoderAxis::set_current_position(int32_t position)
 {
-  noInterrupts();
   mEncAngleAct = position * EXT_TO_INT_FACTOR;
-  interrupts();
   //Serial.write("DBG cur pos set to");
   //Serial.print(mEncAngleAct);
   //Serial.write("\n");
@@ -120,10 +117,8 @@ void CEncoderAxis::set_current_position(int32_t position)
 
 void CEncoderAxis::update()
 {
-  noInterrupts();
   int32_t enc_angle = mEncAngleAct;
   uint32_t enc_last_change = mEncLastChange;
-  interrupts();
 
   bool not_moving = millis() > (enc_last_change + STOPPING_TIME);
 
@@ -176,6 +171,8 @@ void CEncoderAxis::motor_set_state(CEncoderAxis::EMotorState state)
       //Serial.write("EMotorStateStoppingNeg");
       break;
     case CEncoderAxis::EMotorStateStopped:
+      digitalWrite(mMotPosPin, CEncoderAxis::ERelayStateOff);
+      digitalWrite(mMotNegPin, CEncoderAxis::ERelayStateOff);
       //Serial.write("EMotorStateStopped");
       break;
     default:
@@ -220,9 +217,30 @@ void CEncoderAxis::motor_request_state(CEncoderAxis::EMotorState req_state)
 
 void CEncoderAxis::do_homing_procedure()
 {
-  int32_t prev_pos = -1;
-  int32_t cur_pos = 0;
-  move_negative();
+  //int32_t prev_pos = -1;
+  //int32_t cur_pos = 0;
+
+  motor_set_state(CEncoderAxis::EMotorStateStopped);
+  delay(HOMING_CHECK_TIME);
+  //motor_set_state(CEncoderAxis::EMotorStateRunningPos);
+  //delay(HOMING_CHECK_TIME);
+  //motor_set_state(CEncoderAxis::EMotorStateStopped);
+  //delay(HOMING_CHECK_TIME);
+  motor_set_state(CEncoderAxis::EMotorStateRunningNeg);
+  delay(HOMING_CHECK_TIME);
+  delay(HOMING_CHECK_TIME);
+  delay(HOMING_CHECK_TIME);
+  delay(HOMING_CHECK_TIME);
+  delay(HOMING_CHECK_TIME);
+  delay(HOMING_CHECK_TIME);
+  delay(HOMING_CHECK_TIME);
+  delay(HOMING_CHECK_TIME);
+  delay(HOMING_CHECK_TIME);
+  motor_set_state(CEncoderAxis::EMotorStateStopped);
+  delay(HOMING_CHECK_TIME);
+
+
+/*  move_negative();
   while(prev_pos != cur_pos)
   {
     prev_pos = cur_pos;
@@ -231,5 +249,5 @@ void CEncoderAxis::do_homing_procedure()
   }
   stop_moving();
   set_current_position(HOMING_OFFSET);
-  move_to_position(0);
+  move_to_position(0);*/
 }

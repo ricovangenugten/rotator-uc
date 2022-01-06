@@ -4,115 +4,93 @@
 
 #define MAX_NUMBER_STRING_SIZE 6
 
-CAxis* CEasyCommHandler::mAzimuthAxis = NULL;
-CAxis* CEasyCommHandler::mElevationAxis = NULL;
-char CEasyCommHandler::mReceiveBuffer[BUF_SIZE];
-size_t CEasyCommHandler::mBufferIndex = 0;
+CEncoderAxis* CEasyCommHandler::mAzimuthAxis = NULL;
+CEncoderAxis* CEasyCommHandler::mElevationAxis = NULL;
 
-void CEasyCommHandler::begin(CAxis& azimuth_axis, CAxis& elevation_axis, uint16_t baud_rate)
+void CEasyCommHandler::begin(CEncoderAxis& azimuth_axis, CEncoderAxis& elevation_axis)
 {
   mAzimuthAxis = &azimuth_axis;
   mElevationAxis = &elevation_axis;
-  mBufferIndex = 0;
-  Serial.begin(baud_rate);
 }
 
-void CEasyCommHandler::update()
+void CEasyCommHandler::handle_command(char* command, char* response)
 {
-  // Handle serial input
-  if (Serial.available())
-  {
-    int32_t read_val = 0;
-    while ((read_val = Serial.read()) >= 0)
-    {
-      mReceiveBuffer[mBufferIndex] = static_cast<uint8_t>(read_val);
-      if (mBufferIndex == BUF_SIZE-1)
-      {
-        Serial.write("ERR buffer is full\n");
-        mBufferIndex = 0;
-        break;
-      }
-      if (mReceiveBuffer[mBufferIndex] == '\n' || mReceiveBuffer[mBufferIndex] == '\r' || mReceiveBuffer[mBufferIndex] == ' ')
-      {
-        // Command seperator detected, process command
-        handle_command();
-        mBufferIndex = 0;
-        break;
-      }
-      mBufferIndex++;
-    }
-  }
-}
+  // Empty response by default
+  response[0] = '\0';
 
-void CEasyCommHandler::handle_command()
-{
-  if (mReceiveBuffer[0] == 'A' && mReceiveBuffer[1] == 'Z')
+  Serial.print("Got command ");
+  Serial.println(command);
+
+  if (command[0] == 'A' && command[1] == 'Z')
   {
-    CEasyCommHandler::handle_az_el_command(mAzimuthAxis);
+    CEasyCommHandler::handle_az_el_command(mAzimuthAxis, command, response);
   }
-  else if (mReceiveBuffer[0] == 'E' && mReceiveBuffer[1] == 'L')
+  else if (command[0] == 'E' && command[1] == 'L')
   {
-    CEasyCommHandler::handle_az_el_command(mElevationAxis);
+    CEasyCommHandler::handle_az_el_command(mElevationAxis, command, response);
   }
-  else if (mReceiveBuffer[0] == 'V' && mReceiveBuffer[1] == 'E')
+  else if (command[0] == 'V' && command[1] == 'E')
   {
     // Return version
     Serial.write("PA3RVG Az/El rotor 0.0.1\n");
   }
-  else if (mReceiveBuffer[0] == 'M')
+  else if (command[0] == 'M')
   {
-    if(mReceiveBuffer[1] == 'L')
+    if(command[1] == 'L')
     {
       // Move left
       mAzimuthAxis->move_negative();
+      Serial.println("Moving left");
     }
-    if(mReceiveBuffer[1] == 'R')
+    if(command[1] == 'R')
     {
       // Move right
       mAzimuthAxis->move_positive();
+      Serial.println("Moving right");
     }
-    if(mReceiveBuffer[1] == 'U')
+    if(command[1] == 'U')
     {
       // Move up
       mElevationAxis->move_positive();
-
+      Serial.println("Moving up");
     }
-    if(mReceiveBuffer[1] == 'D')
+    if(command[1] == 'D')
     {
       // Move down
       mElevationAxis->move_negative();
+      Serial.println("Moving down");
     }
   }
-  else if (mReceiveBuffer[0] == 'S')
+  else if (command[0] == 'S')
   {
-    if(mReceiveBuffer[1] == 'A')
+    if(command[1] == 'A')
     {
       // Stop azimuth movement
       mAzimuthAxis->stop_moving();
+      Serial.println("Stop moving azimuth");
     }
-    if(mReceiveBuffer[1] == 'E')
+    if(command[1] == 'E')
     {
       // Stop elevation movement
       mElevationAxis->stop_moving();
+      Serial.println("Stop moving elevation");
     }
   }
 }
 
-void CEasyCommHandler::handle_az_el_command(CAxis* axis)
+void CEasyCommHandler::handle_az_el_command(CEncoderAxis* axis, char* command, char* response)
 {
-  if (mBufferIndex == 2)
+  size_t len = strnlen(command, COMM_BUF_SIZE);
+
+  if (len == 3)
   {
     // If the command is two bytes long get current position
     char num_string[MAX_NUMBER_STRING_SIZE];
     int32_t cur_pos = axis->get_current_position();
     if (CEasyCommHandler::number_to_string(cur_pos, num_string))
     {
-      Serial.write(mReceiveBuffer[0]);
-      Serial.write(mReceiveBuffer[1]);
-      Serial.write(num_string);
-      // Write back the same character as used to end the command,
-      // since rotctld depends on that
-      Serial.write(mReceiveBuffer[2]);
+      snprintf(response, RESP_BUF_SIZE, "%c%c%s%c", command[0], command[1], num_string, command[2]);
+      Serial.println(response);
     }
   }
   else
@@ -121,11 +99,12 @@ void CEasyCommHandler::handle_az_el_command(CAxis* axis)
     int32_t number = 0;
     // replace command separator with null character
     // so the buffer can be used as a string
-    mReceiveBuffer[mBufferIndex] = '\0';
-    if (CEasyCommHandler::string_to_number(&(mReceiveBuffer[2]), number))
+    command[len-1] = '\0';
+    if (CEasyCommHandler::string_to_number(&(command[2]), number))
     {
+      Serial.print("Moving to position ");
+      Serial.println(number);
       axis->move_to_position(number);
-      //Serial.write("OK moving to setpoint\n");
     }
   }
 }
@@ -137,14 +116,14 @@ bool CEasyCommHandler::string_to_number(char* string, int32_t& number)
   // if the length is at max, something is wrong with the string
   if (len >= MAX_NUMBER_STRING_SIZE)
   {
-    Serial.write("ERR source number string too long\n");
+    Serial.println("ERR source number string too long");
     return false;
   }
 
   // Assumption: number has a dot and one decimal at the end. If not, something is wrong
   if (string[len-2] != '.')
   {
-    Serial.write("ERR No dot found in number\n");
+    Serial.println("ERR No dot found in number");
     return false;
   }
 
@@ -161,12 +140,12 @@ bool CEasyCommHandler::string_to_number(char* string, int32_t& number)
 
 bool CEasyCommHandler::number_to_string(int32_t& number, char* string)
 {
-  snprintf(string, MAX_NUMBER_STRING_SIZE, "%ld", static_cast<long int>(number));
+  snprintf(string, MAX_NUMBER_STRING_SIZE, "%02ld", static_cast<long int>(number));
 
-  size_t len = strnlen(string, MAX_NUMBER_STRING_SIZE-1);
+  size_t len = strnlen(string, MAX_NUMBER_STRING_SIZE);
 
   // if the length is at max, something is wrong with the string
-  if (len >= MAX_NUMBER_STRING_SIZE-1)
+  if (len >= MAX_NUMBER_STRING_SIZE)
   {
     Serial.write("ERR destination number string too long\n");
     return false;
