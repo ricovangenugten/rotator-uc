@@ -1,4 +1,4 @@
 # rotator-uc
-Microcontroller (arduino) code for my antenna rotator
+Microcontroller (arduino nano or esp8266) code for my antenna rotator
 
-Implements Easycom II and interfaces with 4 relays and 2 rotary encoders. Makefile depends on arduino-mk.
+Implements Easycomm II over serial or wifi, both work with hamlib rotctld. Interfaces with 4 relays and 2 rotary encoders. Uses platformio.
