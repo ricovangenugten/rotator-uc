@@ -40,13 +40,13 @@ private:
     EMotorStateStoppingNeg = 4,
   };
 
-  void motor_set_state(EMotorState state);
   void motor_request_state(EMotorState req_state);
+  void _motor_set_state(EMotorState state);
+
 
   EMotorState mMotCurState;
   EMotorState mMotReqState;
-  EEncState mEncCurState;
-  uint32_t mEncLastChange;
+  volatile uint32_t mEncLastChange;
   volatile int32_t mEncAngleAct;
   int32_t mEncAngleSet;
   uint32_t mTransitionDueTime;

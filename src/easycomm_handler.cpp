@@ -32,7 +32,7 @@ void CEasyCommHandler::handle_command(char* command, char* response)
   else if (command[0] == 'V' && command[1] == 'E')
   {
     // Return version
-    Serial.write("PA3RVG Az/El rotor 0.0.1\n");
+    snprintf(response, RESP_BUF_SIZE, "PA3RVG Az/El rotor 0.0.1\n");
   }
   else if (command[0] == 'M')
   {

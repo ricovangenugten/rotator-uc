@@ -4,7 +4,7 @@
 
 #ifdef USE_WIFI
 #include <ESP8266WiFi.h>
-#include "wifi_credentials.h"
+#include "credentials.h"
 WiFiServer wifiServer(23);
 #endif
 
@@ -78,8 +78,8 @@ void setup() {
   azimuth_axis.begin();
   elevation_axis.begin();
 
-  attachInterrupt(digitalPinToInterrupt(ENC_AZ),   azimuth_enc_interrupt, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ENC_EL), elevation_enc_interrupt, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_AZ),   azimuth_enc_interrupt, FALLING);
+  attachInterrupt(digitalPinToInterrupt(ENC_EL), elevation_enc_interrupt, FALLING);
 
   CEasyCommHandler::begin(azimuth_axis, elevation_axis);
 
@@ -101,7 +101,9 @@ void setup() {
 //  azimuth_axis.do_homing_procedure();
 }
 
+#ifdef USE_WIFI
 WiFiClient curClient;
+#endif
 
 void loop()
 {

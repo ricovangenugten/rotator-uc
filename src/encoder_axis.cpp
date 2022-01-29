@@ -3,10 +3,10 @@
 
 // 300 [rot/min] * (20*2) [transitions] / 60 [sec/min] = 200 [transitions/second]
 // 1000 [ms] / 200 [transitions/second] = 5 [ms/transition]
-#define ENC_DEAD_TIME 1 // ms
+#define ENC_DEAD_TIME 2 // ms
 
-// 7.5 deg/s / 5 rot/s / 40 trans/rot = 0.0375 deg/trans = 375 * 1e-4 deg/trans
-#define INCR_PER_COUNT 375 // 1e-4 deg
+// 7.5 deg/s / 5 rot/s / 20*2 trans/rot = 0.0375 deg/trans = 375 * 1e-4 deg/trans
+#define INCR_PER_COUNT 375*2 // 1e-4 deg
 
 // external (1e-1 deg) to internal (1e-4 deg) scaling factor
 #define EXT_TO_INT_FACTOR 1e3
@@ -18,7 +18,6 @@
 CEncoderAxis::CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin, int32_t start_pos) :
   mMotCurState(CEncoderAxis::EMotorStateStopped),
   mMotReqState(CEncoderAxis::EMotorStateStopped),
-  mEncCurState(CEncoderAxis::EEncStateUnknown),
   mEncLastChange(0),
   mEncAngleAct(start_pos*EXT_TO_INT_FACTOR),
   mEncAngleSet(0),
@@ -41,20 +40,20 @@ void CEncoderAxis::begin()
 
 void CEncoderAxis::enc_interrupt()
 {
-  CEncoderAxis::EEncState new_state = static_cast<CEncoderAxis::EEncState>(digitalRead(mEncPin));
-  static uint32_t curTime = millis();
-  if (mEncCurState != new_state)
+  uint32_t cur_time = millis();
+
+  if (cur_time > (mEncLastChange + ENC_DEAD_TIME))
   {
-    if ((curTime - mEncLastChange) >= ENC_DEAD_TIME)
+    // valid encoder transition
+    if (mMotCurState == CEncoderAxis::EMotorStateRunningPos || mMotCurState == CEncoderAxis::EMotorStateStoppingPos)
     {
-      // valid encoder transition
-      if (mMotCurState == CEncoderAxis::EMotorStateRunningPos || mMotCurState == CEncoderAxis::EMotorStateStoppingPos)
-        mEncAngleAct += INCR_PER_COUNT;
-      if (mMotCurState == CEncoderAxis::EMotorStateRunningNeg || mMotCurState == CEncoderAxis::EMotorStateStoppingNeg)
-        mEncAngleAct -= INCR_PER_COUNT;
+      mEncAngleAct += INCR_PER_COUNT;
     }
-    mEncLastChange = curTime;
-    mEncCurState = new_state;
+    if (mMotCurState == CEncoderAxis::EMotorStateRunningNeg || mMotCurState == CEncoderAxis::EMotorStateStoppingNeg)
+    {
+      mEncAngleAct -= INCR_PER_COUNT;
+    }
+    mEncLastChange = cur_time;
   }
   return;
 }
@@ -62,7 +61,7 @@ void CEncoderAxis::enc_interrupt()
 void CEncoderAxis::enc_reset()
 {
   noInterrupts();
-  mEncLastChange = millis();
+  mEncLastChange = millis() - ENC_DEAD_TIME;
   interrupts();
 }
 
@@ -71,11 +70,17 @@ void CEncoderAxis::move_to_position(int32_t setpoint)
   mStopAtSetpoint = true;
   mEncAngleSet = setpoint * EXT_TO_INT_FACTOR;
   if (mEncAngleSet > mEncAngleAct)
+  {
     motor_request_state(CEncoderAxis::EMotorStateRunningPos);
+  }
   else if (mEncAngleSet < mEncAngleAct)
+  {
     motor_request_state(CEncoderAxis::EMotorStateRunningNeg);
+  }
   else
+  {
     motor_request_state(CEncoderAxis::EMotorStateStopped);
+  }
 }
 
 void CEncoderAxis::move_positive()
@@ -92,6 +97,7 @@ void CEncoderAxis::move_negative()
 
 void CEncoderAxis::stop_moving()
 {
+  mStopAtSetpoint = true;
   motor_request_state(CEncoderAxis::EMotorStateStopped);
 }
 
@@ -115,6 +121,7 @@ void CEncoderAxis::set_current_position(int32_t position)
 
 }
 
+// Update the state machine by doing requests based on input conditions
 void CEncoderAxis::update()
 {
   int32_t enc_angle = mEncAngleAct;
@@ -128,25 +135,74 @@ void CEncoderAxis::update()
       // Do nothing
       break;
     case CEncoderAxis::EMotorStateRunningPos:
+      // Start transition to stopped if necessary
       if (not_moving || (mStopAtSetpoint && enc_angle >= mEncAngleSet))
         motor_request_state(CEncoderAxis::EMotorStateStopped);
       break;
     case CEncoderAxis::EMotorStateRunningNeg:
+      // Start transition to stopped if necessary
       if (not_moving || (mStopAtSetpoint && enc_angle <= mEncAngleSet))
         motor_request_state(CEncoderAxis::EMotorStateStopped);
       break;
     case CEncoderAxis::EMotorStateStoppingNeg: // fall-through
     case CEncoderAxis::EMotorStateStoppingPos:
-      // check if transition is due
-      if (millis() > mTransitionDueTime)
-        motor_set_state(mMotReqState);
-      break;
-    default:
+      // Finish delayed transition if ready
+      motor_request_state(mMotReqState);
       break;
   }
 }
 
-void CEncoderAxis::motor_set_state(CEncoderAxis::EMotorState state)
+// Request state transitions
+void CEncoderAxis::motor_request_state(CEncoderAxis::EMotorState req_state)
+{
+  uint32_t cur_time = millis();
+  switch(mMotCurState)
+  {
+    case CEncoderAxis::EMotorStateStopped:
+      // From stopped, only transition to running pos or running neg is allowed
+      if (req_state == CEncoderAxis::EMotorStateRunningPos ||
+          req_state == CEncoderAxis::EMotorStateRunningNeg)
+      {
+        _motor_set_state(req_state);
+      }
+      break;
+    case CEncoderAxis::EMotorStateRunningPos:
+      if (req_state == CEncoderAxis::EMotorStateRunningNeg ||
+          req_state == CEncoderAxis::EMotorStateStopped)
+      {
+        _motor_set_state(CEncoderAxis::EMotorStateStoppingPos);
+        mTransitionDueTime = cur_time + STOPPING_TIME;
+        mMotReqState = req_state;
+      }
+      break;
+    case CEncoderAxis::EMotorStateRunningNeg:
+      if (req_state == CEncoderAxis::EMotorStateRunningPos ||
+          req_state == CEncoderAxis::EMotorStateStopped)
+      {
+        _motor_set_state(CEncoderAxis::EMotorStateStoppingNeg);
+        mTransitionDueTime = cur_time + STOPPING_TIME;
+        mMotReqState = req_state;
+      }
+      break;
+    case CEncoderAxis::EMotorStateStoppingPos:
+    case CEncoderAxis::EMotorStateStoppingNeg:
+      // Process delayed state transition
+      if (req_state == CEncoderAxis::EMotorStateRunningPos ||
+          req_state == CEncoderAxis::EMotorStateRunningNeg ||
+          req_state == CEncoderAxis::EMotorStateStopped)
+      {
+        if (cur_time > mTransitionDueTime)
+        {
+          _motor_set_state(req_state);
+        }
+      }
+      break;
+  }
+}
+
+// Perform state transitions
+// should only be called by motor_request_state to adhere to state diagram
+void CEncoderAxis::_motor_set_state(CEncoderAxis::EMotorState state)
 {
   mMotCurState = state;
   //Serial.write("DBG setting state ");
@@ -181,52 +237,18 @@ void CEncoderAxis::motor_set_state(CEncoderAxis::EMotorState state)
   //Serial.write("\n");
 }
 
-void CEncoderAxis::motor_request_state(CEncoderAxis::EMotorState req_state)
-{
-  mMotReqState = req_state;
-  switch(mMotCurState)
-  {
-    case CEncoderAxis::EMotorStateStopped:
-      // From stopped, only transition to running pos or running neg is allowed
-      if (mMotReqState == CEncoderAxis::EMotorStateRunningPos || mMotReqState == CEncoderAxis::EMotorStateRunningNeg)
-      {
-        motor_set_state(mMotReqState);
-      }
-      break;
-    case CEncoderAxis::EMotorStateRunningPos:
-      if (mMotReqState == CEncoderAxis::EMotorStateRunningNeg || mMotReqState == CEncoderAxis::EMotorStateStopped)
-      {
-        motor_set_state(CEncoderAxis::EMotorStateStoppingPos);
-        mTransitionDueTime = millis() + STOPPING_TIME;
-      }
-      break;
-    case CEncoderAxis::EMotorStateRunningNeg:
-      if (mMotReqState == CEncoderAxis::EMotorStateRunningPos || mMotReqState == CEncoderAxis::EMotorStateStopped)
-      {
-        motor_set_state(CEncoderAxis::EMotorStateStoppingNeg);
-        mTransitionDueTime = millis() + STOPPING_TIME;
-      }
-      break;
-      // Transitional states, no action on request
-    case CEncoderAxis::EMotorStateStoppingPos:
-    case CEncoderAxis::EMotorStateStoppingNeg:
-    default:
-      break;
-  }
-}
-
 void CEncoderAxis::do_homing_procedure()
 {
   //int32_t prev_pos = -1;
   //int32_t cur_pos = 0;
 
-  motor_set_state(CEncoderAxis::EMotorStateStopped);
+  motor_request_state(CEncoderAxis::EMotorStateStopped);
   delay(HOMING_CHECK_TIME);
   //motor_set_state(CEncoderAxis::EMotorStateRunningPos);
   //delay(HOMING_CHECK_TIME);
   //motor_set_state(CEncoderAxis::EMotorStateStopped);
   //delay(HOMING_CHECK_TIME);
-  motor_set_state(CEncoderAxis::EMotorStateRunningNeg);
+  motor_request_state(CEncoderAxis::EMotorStateRunningNeg);
   delay(HOMING_CHECK_TIME);
   delay(HOMING_CHECK_TIME);
   delay(HOMING_CHECK_TIME);
@@ -236,7 +258,7 @@ void CEncoderAxis::do_homing_procedure()
   delay(HOMING_CHECK_TIME);
   delay(HOMING_CHECK_TIME);
   delay(HOMING_CHECK_TIME);
-  motor_set_state(CEncoderAxis::EMotorStateStopped);
+  motor_request_state(CEncoderAxis::EMotorStateStopped);
   delay(HOMING_CHECK_TIME);
 
 

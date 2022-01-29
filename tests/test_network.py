@@ -12,63 +12,97 @@ class KeyGrabber:
     KEY_OTHER = 5
 
     def get_key(self):
-        key = self.KEY_OTHER
+        is_special_key = False
 
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
             tty.setraw(sys.stdin.fileno())
 
-            # Wait for input of escape char, ignore any other input
-            while sys.stdin.read(1) != '\x1b':
-                pass
-
-            # Escape char found, read the following 2 bytes
-            ch = sys.stdin.read(2)
+            # Read a single char
+            first_char = sys.stdin.read(1)
+            if first_char == '\x1b':
+                # When a special char is encountered, read following 2 chars
+                is_special_key = True
+                input = sys.stdin.read(2)
+            else:
+                # Otherwise just use the first char
+                input = first_char
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-        if   ch=='[A':
-            key = self.KEY_UP
-        elif ch=='[B':
-            key = self.KEY_DOWN
-        elif ch=='[C':
-            key = self.KEY_RIGHT
-        elif ch=='[D':
-            key = self.KEY_LEFT
+        if   input == '[A':
+            output = self.KEY_UP
+        elif input == '[B':
+            output = self.KEY_DOWN
+        elif input == '[C':
+            output = self.KEY_RIGHT
+        elif input == '[D':
+            output = self.KEY_LEFT
+        else:
+            output = input.lower()
 
-        return key
+        return (is_special_key, output)
+
+
+class EasyCommClient:
+    def __init__(self, host, port):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect((host, port))
+        self.sock.settimeout(0.2)
+
+    def send_command(self, command):
+        sent = self.sock.send(("%s\n" % command).encode('utf-8'))
+        print("Sent: %s" % command)
+        try:
+            response = self.sock.recv(1024)
+            print("Recv: %s" % response.decode())
+        except socket.timeout:
+           pass
 
 
 def main():
     parser = argparse.ArgumentParser(description='Test rotator control over network.')
     parser.add_argument('--host', type=str, help='hostname or ip')
-    parser.add_argument('--port', type=int, help='port')
+    parser.add_argument('--port', type=int, help='port', default=23)
 
     args = parser.parse_args()
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((args.host, args.port))
+    ec = EasyCommClient(args.host, args.port)
 
     kg = KeyGrabber()
 
-    for i in range(0,20):
-        key = kg.get_key()
-        if key == kg.KEY_UP:
-            print("up")
-            sent = s.send(b"MU\n")
-        if key == kg.KEY_DOWN:
-            print("down")
-            sent = s.send(b"MD\n")
-        if key == kg.KEY_RIGHT:
-            print("right")
-            sent = s.send(b"MR\n")
-        if key == kg.KEY_LEFT:
-            print("left")
-            sent = s.send(b"ML\n")
+    while True:
+        (is_special_key, key) = kg.get_key()
+        if is_special_key:
+            if   key == kg.KEY_UP:
+                ec.send_command("MU")
 
+            elif key == kg.KEY_DOWN:
+                ec.send_command("MD")
 
-        print("Sent %d bytes" % sent)
+            elif key == kg.KEY_RIGHT:
+                ec.send_command("MR")
+
+            elif key == kg.KEY_LEFT:
+                ec.send_command("ML")
+
+        else:
+            if   key == 'q':
+                quit()
+
+            elif key == 's':
+                ec.send_command("SA SE")
+
+            elif key == 'a':
+                ec.send_command("AZ")
+
+            elif key == 'e':
+                ec.send_command("EL")
+
+            elif key == 'v':
+                ec.send_command("VE")
+
 
 
 if __name__=='__main__':
