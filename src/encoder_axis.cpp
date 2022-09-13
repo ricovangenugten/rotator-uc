@@ -6,20 +6,23 @@
 #define ENC_DEAD_TIME 2 // ms
 
 // 7.5 deg/s / 5 rot/s / 20*2 trans/rot = 0.0375 deg/trans = 375 * 1e-4 deg/trans
-#define INCR_PER_COUNT 375*2 // 1e-4 deg
+#define INCR_PER_COUNT 375 // 1e-4 deg
+
+#define ANGLE_HYSTERESIS 5000 // 1e-4 deg
 
 // external (1e-1 deg) to internal (1e-4 deg) scaling factor
 #define EXT_TO_INT_FACTOR 1e3
 
 #define STOPPING_TIME 500L //ms
 #define HOMING_CHECK_TIME 500 // ms
-#define HOMING_OFFSET -100 // [1/10 deg]
+#define HOMING_TIMEOUT 60*1000L // ms
+#define HOMING_POSITION 0 // [1/10 deg]
 
-CEncoderAxis::CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin, int32_t start_pos) :
+CEncoderAxis::CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin) :
   mMotCurState(CEncoderAxis::EMotorStateStopped),
   mMotReqState(CEncoderAxis::EMotorStateStopped),
   mEncLastChange(0),
-  mEncAngleAct(start_pos*EXT_TO_INT_FACTOR),
+  mEncAngleAct(),
   mEncAngleSet(0),
   mTransitionDueTime(0),
   mEncPin(enc_pin),
@@ -69,11 +72,11 @@ void CEncoderAxis::move_to_position(int32_t setpoint)
 {
   mStopAtSetpoint = true;
   mEncAngleSet = setpoint * EXT_TO_INT_FACTOR;
-  if (mEncAngleSet > mEncAngleAct)
+  if (mEncAngleSet > mEncAngleAct + ANGLE_HYSTERESIS)
   {
     motor_request_state(CEncoderAxis::EMotorStateRunningPos);
   }
-  else if (mEncAngleSet < mEncAngleAct)
+  else if (mEncAngleSet < mEncAngleAct - ANGLE_HYSTERESIS)
   {
     motor_request_state(CEncoderAxis::EMotorStateRunningNeg);
   }
@@ -239,37 +242,22 @@ void CEncoderAxis::_motor_set_state(CEncoderAxis::EMotorState state)
 
 void CEncoderAxis::do_homing_procedure()
 {
-  //int32_t prev_pos = -1;
-  //int32_t cur_pos = 0;
+  // Start moving in negative direction
+  move_negative();
 
-  motor_request_state(CEncoderAxis::EMotorStateStopped);
-  delay(HOMING_CHECK_TIME);
-  //motor_set_state(CEncoderAxis::EMotorStateRunningPos);
-  //delay(HOMING_CHECK_TIME);
-  //motor_set_state(CEncoderAxis::EMotorStateStopped);
-  //delay(HOMING_CHECK_TIME);
-  motor_request_state(CEncoderAxis::EMotorStateRunningNeg);
-  delay(HOMING_CHECK_TIME);
-  delay(HOMING_CHECK_TIME);
-  delay(HOMING_CHECK_TIME);
-  delay(HOMING_CHECK_TIME);
-  delay(HOMING_CHECK_TIME);
-  delay(HOMING_CHECK_TIME);
-  delay(HOMING_CHECK_TIME);
-  delay(HOMING_CHECK_TIME);
-  delay(HOMING_CHECK_TIME);
-  motor_request_state(CEncoderAxis::EMotorStateStopped);
-  delay(HOMING_CHECK_TIME);
-
-
-/*  move_negative();
-  while(prev_pos != cur_pos)
+  // Wait until stopped (end stop used as homing position)
+  auto timeout = millis() + HOMING_TIMEOUT;
+  while(not is_stopped() && millis() < timeout)
   {
-    prev_pos = cur_pos;
+    update();
     delay(HOMING_CHECK_TIME);
-    cur_pos = get_current_position();
   }
-  stop_moving();
-  set_current_position(HOMING_OFFSET);
-  move_to_position(0);*/
+
+  // When stopped, update current position to homing position
+  set_current_position(HOMING_POSITION);
+}
+
+bool CEncoderAxis::is_stopped()
+{
+  return (mMotCurState == CEncoderAxis::EMotorStateStopped);
 }

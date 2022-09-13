@@ -3,7 +3,7 @@
 class CEncoderAxis
 {
 public:
-  CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin, int32_t start_pos);
+  CEncoderAxis(uint8_t enc_pin, uint8_t mot_pos_pin, uint8_t mot_neg_pin);
   void begin();
   void INTERRUPT_FUNC enc_interrupt();
   void enc_reset();
@@ -16,6 +16,7 @@ public:
   void set_current_position(int32_t position);
   void update();
   void do_homing_procedure();
+  bool is_stopped();
 
 private:
   enum EEncState

@@ -64,7 +64,7 @@ class EasyCommClient:
 def main():
     parser = argparse.ArgumentParser(description='Test rotator control over network.')
     parser.add_argument('--host', type=str, help='hostname or ip')
-    parser.add_argument('--port', type=int, help='port', default=23)
+    parser.add_argument('--port', type=int, help='port', default=4533)
 
     args = parser.parse_args()
 
@@ -102,6 +102,9 @@ def main():
 
             elif key == 'v':
                 ec.send_command("VE")
+
+            elif key == 'p':
+                ec.send_command("p")
 
 
 

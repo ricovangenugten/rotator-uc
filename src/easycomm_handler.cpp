@@ -21,7 +21,17 @@ void CEasyCommHandler::handle_command(char* command, char* response)
   Serial.print("Got command ");
   Serial.println(command);
 
-  if (command[0] == 'A' && command[1] == 'Z')
+  if (command[0] == 'p' || (command[0] == '\\' && command[1] == 'g'))
+  {
+    // rotctld style get pos
+    handle_get_pos_command(command, response);
+  }
+  else if (command[0] == 'P' || (command[0] == '\\' && command[1] == 's'))
+  {
+    // rotctld style set pos
+    handle_set_pos_command(command, response);
+  }
+  else if (command[0] == 'A' && command[1] == 'Z')
   {
     CEasyCommHandler::handle_az_el_command(mAzimuthAxis, command, response);
   }
@@ -76,6 +86,24 @@ void CEasyCommHandler::handle_command(char* command, char* response)
       Serial.println("Stop moving elevation");
     }
   }
+}
+
+void CEasyCommHandler::handle_get_pos_command(char* command, char* response)
+{
+  int32_t az_pos = mAzimuthAxis->get_current_position();
+  int32_t el_pos = mElevationAxis->get_current_position();
+  snprintf(response, RESP_BUF_SIZE, "%.1f\n%.1f\n", az_pos/10.0, el_pos/10.0);
+}
+
+void CEasyCommHandler::handle_set_pos_command(char* command, char* response)
+{
+  float az_pos = 0.0;
+  float el_pos = 0.0;
+
+  sscanf(command, "%*s %f %f", &az_pos, &el_pos);
+  mAzimuthAxis->move_to_position(static_cast<int32_t>(az_pos*10.0));
+  mElevationAxis->move_to_position(static_cast<int32_t>(el_pos*10.0));
+  snprintf(response, RESP_BUF_SIZE, "RPRT 0\n");
 }
 
 void CEasyCommHandler::handle_az_el_command(CEncoderAxis* axis, char* command, char* response)

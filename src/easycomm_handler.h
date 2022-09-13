@@ -31,7 +31,7 @@ static void handle_commands(T client)
     char recv_char = client.read();
     command[it++] = recv_char;
 
-    if (recv_char == '\n' || recv_char == '\r' || recv_char == ' ')
+    if (recv_char == '\n' || recv_char == '\r'/* || recv_char == ' '*/)
     {
       if (it > 1)
       {
@@ -58,6 +58,8 @@ private:
 
   CEasyCommHandler() {}
   static void handle_command(char* command, char* response);
+  static void handle_get_pos_command(char* command, char* response);
+  static void handle_set_pos_command(char* command, char* response);
   static void handle_az_el_command(CEncoderAxis* axis, char* command, char* response);
   static bool string_to_number(char* string, int32_t& number);
   static bool number_to_string(int32_t& number, char* string);
